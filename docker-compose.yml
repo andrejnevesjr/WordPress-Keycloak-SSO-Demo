@@ -1,0 +1,107 @@
+version: "3.9"
+
+services:
+  keycloak-db:
+    image: postgres:15
+    container_name: keycloak-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloakpw
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+    networks:
+      - sso-net
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.5
+    container_name: keycloak
+    depends_on:
+      - keycloak-db
+    restart: unless-stopped
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloakpw
+      KC_HOSTNAME_URL: http://keycloak.local:8080
+      KC_HOSTNAME_ADMIN_URL: http://keycloak.local:8080
+      KC_PROXY: edge
+      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
+    command: ["start-dev", "--import-realm", "--http-enabled=true"]
+    volumes:
+      - ./keycloak/realm-demo.json:/opt/keycloak/data/import/realm-demo.json:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks:
+      - sso-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: keycloak-proxy
+    depends_on:
+      - keycloak
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx-keycloak.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - sso-net
+
+  wp-db:
+    image: mysql:8.0
+    container_name: wp-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpresspw
+      MYSQL_ROOT_PASSWORD: rootpw
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    volumes:
+      - wp_db_data:/var/lib/mysql
+    networks:
+      - sso-net
+
+  wordpress:
+    image: wordpress:latest
+    container_name: wordpress
+    depends_on:
+      - wp-db
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_HOST: wp-db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpresspw
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_HOME', 'http://wordpress.local:8081');
+        define('WP_SITEURL', 'http://wordpress.local:8081');
+        define('FS_METHOD', 'direct');
+        define('DISABLE_WP_CRON', false);
+    ports:
+      - "8081:80"
+    volumes:
+      - wp_data:/var/www/html
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost/wp-login.php"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks:
+      - sso-net
+
+networks:
+  sso-net:
+
+volumes:
+  keycloak_db_data:
+  wp_db_data:
+  wp_data:

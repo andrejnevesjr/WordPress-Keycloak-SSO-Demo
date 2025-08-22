@@ -1,0 +1,32 @@
+{
+  "realm": "demo",
+  "enabled": true,
+  "sslRequired": "NONE",
+  "clients": [
+    {
+      "clientId": "wordpress",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "wordpress-secret",
+      "redirectUris": ["http://wordpress.local:8081/*"],
+      "webOrigins": ["http://wordpress.local:8081"],
+      "defaultClientScopes": ["web-origins", "roles", "profile", "email"]
+    }
+  ],
+  "users": [
+    {
+      "username": "demo-user",
+      "enabled": true,
+      "email": "demo@example.com",
+      "firstName": "Demo",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password1!",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}
